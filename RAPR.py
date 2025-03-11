@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
 
-# --- Funkcje pomocnicze ---
+# --- Helper Functions ---
 def calculate_staking(initial_stake, daily_rate, days=7, accumulated_rewards=0.0):
     """
-    Oblicza nagrody w stakingu na 'days' dni (domyślnie 7 = 1 cykl).
-    Zarobki dzienne są stałe, a sumują się do accumulated_rewards.
+    Calculates staking rewards for 'days' days (7 by default = 1 cycle).
+    Daily earnings are constant and are added to accumulated_rewards.
     """
     daily_earnings = initial_stake * (daily_rate / 100)
     total_earnings = accumulated_rewards
@@ -14,27 +14,28 @@ def calculate_staking(initial_stake, daily_rate, days=7, accumulated_rewards=0.0
     for d in range(1, days + 1):
         total_earnings += daily_earnings
         history.append({
-            "Dzień": d,
-            "Saldo stakowane (RAPR)": round(initial_stake, 4),
-            "Zarobki dzienne (RAPR)": round(daily_earnings, 4),
-            "Suma nagród (RAPR)": round(total_earnings, 4)
+            "Day": d,
+            "Staked balance (RAPR)": round(initial_stake, 4),
+            "Daily earnings (RAPR)": round(daily_earnings, 4),
+            "Total rewards (RAPR)": round(total_earnings, 4)
         })
 
     return history
 
 def calculate_min_profitable_rate(current_daily_earnings, new_stake):
     """
-    Oblicza minimalne APR (w %) potrzebne w nowym stakingu, by zarabiać >= current_daily_earnings.
+    Calculates the minimum APR (%) required in the new staking
+    to earn at least 'current_daily_earnings'.
     """
     if new_stake <= 0:
         return 999.99
     return (current_daily_earnings / new_stake) * 100
 
-# --- Inicjalizacja stanu aplikacji (Session State) ---
+# --- Initial App State (Session State) ---
 if "cycle" not in st.session_state:
-    st.session_state.cycle = 1  # numer aktualnego cyklu
+    st.session_state.cycle = 1  # the current cycle number
 if "max_cycles" not in st.session_state:
-    st.session_state.max_cycles = 5  # maksymalna liczba cykli
+    st.session_state.max_cycles = 5  # maximum number of cycles
 if "initial_stake" not in st.session_state:
     st.session_state.initial_stake = 100.0
 if "daily_rate" not in st.session_state:
@@ -46,33 +47,33 @@ if "history" not in st.session_state:
 if "current_daily_earnings" not in st.session_state:
     st.session_state.current_daily_earnings = st.session_state.initial_stake * (st.session_state.daily_rate / 100)
 
-# --- Interfejs główny ---
-st.title("Symulator Stakingu RAPR — krok po kroku (bez experimental_rerun)")
+# --- Main Interface ---
+st.title("RAPR Staking Simulator")
 
-# 1. Ustawienia początkowe (tylko przed pierwszym cyklem)
+# 1. Initial Settings (only before the first cycle)
 if st.session_state.cycle == 1:
-    st.subheader("Ustawienia początkowe")
+    st.subheader("Initial Settings")
     st.session_state.initial_stake = st.number_input(
-        "Początkowy staking (RAPR):",
+        "Initial staking (RAPR):",
         min_value=1.0,
         value=st.session_state.initial_stake,
         key="initial_stake_input"
     )
     st.session_state.daily_rate = st.number_input(
-        "Obecne dzienne oprocentowanie (%):",
+        "Current daily APR (%):",
         min_value=0.01,
         value=st.session_state.daily_rate,
         key="daily_rate_input"
     )
     st.session_state.max_cycles = st.number_input(
-        "Maksymalna liczba cykli:",
+        "Maximum number of cycles:",
         min_value=1,
         value=st.session_state.max_cycles,
         key="max_cycles_input"
     )
 
-    if st.button("Rozpocznij symulację"):
-        # Obliczenia dla pierwszego cyklu
+    if st.button("Start simulation"):
+        # Calculate the first cycle (7 days)
         result = calculate_staking(
             st.session_state.initial_stake,
             st.session_state.daily_rate,
@@ -80,48 +81,48 @@ if st.session_state.cycle == 1:
             st.session_state.acc_rewards
         )
         last_row = result[-1]
-        st.session_state.acc_rewards = last_row["Suma nagród (RAPR)"]
-        st.session_state.current_daily_earnings = last_row["Zarobki dzienne (RAPR)"]
+        st.session_state.acc_rewards = last_row["Total rewards (RAPR)"]
+        st.session_state.current_daily_earnings = last_row["Daily earnings (RAPR)"]
         st.session_state.history.append(result)
         st.session_state.cycle = 2
 
-        # Zamiast st.experimental_rerun() -> komunikat
-        st.success("Pierwszy cykl obliczony! Odśwież stronę lub kliknij Rerun w menu, by zobaczyć kolejny krok.")
+        # Instead of st.experimental_rerun() -> show message
+        st.success("First cycle calculated! Rerun in the menu to proceed.")
 
-# 2. Jeśli jesteśmy w trakcie cykli i nie przekroczyliśmy max_cycles
+# 2. If we are in the middle of cycles and have not exceeded max_cycles
 elif 1 < st.session_state.cycle <= st.session_state.max_cycles:
     cycle_index = st.session_state.cycle - 1
 
-    # Wyświetlamy dane z poprzedniego cyklu
-    st.subheader(f"Zakończony Cykl {cycle_index}")
+    # Show data from the previous cycle
+    st.subheader(f"Completed Cycle {cycle_index}")
     last_cycle_data = st.session_state.history[-1]
     df = pd.DataFrame(last_cycle_data)
     st.dataframe(df)
 
-    # Obliczenia do wyświetlenia
+    # Display info
     stake_amount = st.session_state.initial_stake
     total_rewards = st.session_state.acc_rewards
-    total_balance = stake_amount  # w starym stakingu nie łączymy automatycznie stake + rewards
+    total_balance = stake_amount  # in the old staking, we do not automatically merge stake + rewards
     current_daily_earnings = st.session_state.current_daily_earnings
 
-    st.write(f"Aktualnie stakowałeś **{stake_amount} RAPR** przy oprocentowaniu **{st.session_state.daily_rate}%**.")
-    st.write(f"Suma nagród po ostatnim cyklu: **{round(total_rewards, 2)} RAPR**.")
-    st.write(f"Twoje zarobki dzienne wynoszą: **{round(current_daily_earnings, 2)} RAPR**.")
+    st.write(f"You currently have **{stake_amount} RAPR** staked at **{st.session_state.daily_rate}%** APR.")
+    st.write(f"Total rewards after the last cycle: **{round(total_rewards, 2)} RAPR**.")
+    st.write(f"Your daily earnings: **{round(current_daily_earnings, 2)} RAPR**.")
 
-    # Minimalne oprocentowanie, by opłacało się restake
-    new_stake_possible = stake_amount + total_rewards  # jeśli byśmy reinwestowali całość
+    # Minimum APR to make a new stake profitable
+    new_stake_possible = stake_amount + total_rewards  # if we reinvest everything
     min_rate = calculate_min_profitable_rate(current_daily_earnings, new_stake_possible)
-    st.write(f"**Minimalne oprocentowanie** nowego stakingu, aby zarabiać więcej: {round(min_rate, 2)}%.")
+    st.write(f"**Minimum APR** for the new staking to earn more than now: {round(min_rate, 2)}%.")
 
     choice = st.radio(
-        f"Czy chcesz robić unstake i restake w Cyklu {st.session_state.cycle}?",
-        ["Nie, kontynuuję stary staking", "Tak, restakuję z nową stawką"],
+        f"Do you want to unstake and restake in Cycle {st.session_state.cycle}?",
+        ["No, continue old staking", "Yes, restake with a new rate"],
         key=f"choice_cycle_{st.session_state.cycle}"
     )
 
-    if choice == "Nie, kontynuuję stary staking":
-        st.info("Kontynuujesz staking na tych samych warunkach...")
-        if st.button("Przejdź do kolejnego cyklu"):
+    if choice == "No, continue old staking":
+        st.info("You continue staking with the same conditions...")
+        if st.button("Proceed to the next cycle"):
             result = calculate_staking(
                 stake_amount,
                 st.session_state.daily_rate,
@@ -129,31 +130,31 @@ elif 1 < st.session_state.cycle <= st.session_state.max_cycles:
                 total_rewards
             )
             last_row = result[-1]
-            st.session_state.acc_rewards = last_row["Suma nagród (RAPR)"]
-            st.session_state.current_daily_earnings = last_row["Zarobki dzienne (RAPR)"]
+            st.session_state.acc_rewards = last_row["Total rewards (RAPR)"]
+            st.session_state.current_daily_earnings = last_row["Daily earnings (RAPR)"]
             st.session_state.history.append(result)
 
             st.session_state.cycle += 1
-            st.warning("Nowy cykl obliczony! Odśwież stronę lub kliknij Rerun w menu, by przejść dalej.")
+            st.warning("New cycle calculated! click Rerun in the menu to continue.")
 
     else:
-        st.success("Robisz unstake i restake — wrzucasz stake + nagrody.")
+        st.success("You are doing unstake and restake — combining stake + rewards.")
         new_rate = st.number_input(
-            "Na jaki procent udało Ci się zastakować?",
+            "At what percentage did you manage to restake?",
             min_value=0.01,
             value=max(min_rate, st.session_state.daily_rate),
             key=f"new_rate_cycle_{st.session_state.cycle}"
         )
 
-        if st.button("Zatwierdź i przejdź do kolejnego cyklu"):
-            # Sumujemy stake + rewards
+        if st.button("Confirm and proceed to the next cycle"):
+            # Combine stake + rewards
             new_stake_amount = stake_amount + total_rewards
             st.session_state.initial_stake = new_stake_amount
             st.session_state.daily_rate = new_rate
-            # Zerujemy poprzednie nagrody
+            # Reset old rewards
             st.session_state.acc_rewards = 0.0
 
-            # Obliczamy nowy cykl
+            # Calculate a new cycle
             result = calculate_staking(
                 st.session_state.initial_stake,
                 st.session_state.daily_rate,
@@ -161,13 +162,13 @@ elif 1 < st.session_state.cycle <= st.session_state.max_cycles:
                 0.0
             )
             last_row = result[-1]
-            st.session_state.acc_rewards = last_row["Suma nagród (RAPR)"]
-            st.session_state.current_daily_earnings = last_row["Zarobki dzienne (RAPR)"]
+            st.session_state.acc_rewards = last_row["Total rewards (RAPR)"]
+            st.session_state.current_daily_earnings = last_row["Daily earnings (RAPR)"]
             st.session_state.history.append(result)
 
             st.session_state.cycle += 1
-            st.success("Nowy staking rozpoczęty! Odśwież stronę lub kliknij Rerun w menu, by przejść dalej.")
+            st.success("New staking started! click Rerun in the menu to continue.")
 
-# 3. Jeśli przekroczyliśmy max_cycles
+# 3. If we have exceeded max_cycles
 else:
-    st.warning("Osiągnąłeś maksymalną liczbę cykli. Koniec symulacji!")
+    st.warning("You have reached the maximum number of cycles. The simulation has ended!")
